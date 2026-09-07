@@ -2,7 +2,10 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { supabase } from './lib/supabase.js';
+import { requireOrganizer, AuthRequest } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -28,6 +31,11 @@ const registerSchema = z.object({
   email: z.string().trim().email(),
 });
 
+const loginSchema = z.object({
+  username: z.string().trim().min(1),
+  password: z.string().min(1),
+});
+
 // ---------- Helpers ----------
 
 function sendError(
@@ -39,58 +47,57 @@ function sendError(
   return res.status(status).json({ error: { code, message } });
 }
 
-// ---------- Routes ----------
-
-/** Health check */
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'bookit-backend' });
-});
+// ---------- Auth routes ----------
 
 /**
- * POST /events
- * Create a new event (organizer).
- * Returns the event + a public registration path hint.
+ * POST /auth/login
+ * Organizer login. Returns a JWT for protected routes.
  */
-app.post('/events', async (req: Request, res: Response, next: NextFunction) => {
+app.post('/auth/login', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const parsed = createEventSchema.safeParse(req.body);
+    const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-      return sendError(res, 400, 'INVALID_INPUT', parsed.error.errors.map(e => e.message).join('; '));
+      return sendError(res, 400, 'INVALID_INPUT', 'Username and password are required');
     }
 
-    const { title, description, event_date, location, max_capacity } = parsed.data;
+    const { username, password } = parsed.data;
 
-    // Extra future-date check (DB also enforces it)
-    const eventDate = new Date(event_date);
-    if (isNaN(eventDate.getTime()) || eventDate <= new Date()) {
-      return sendError(res, 400, 'INVALID_INPUT', 'event_date must be a future date');
+    const expectedUsername = process.env.ORGANIZER_USERNAME;
+    const passwordHash = process.env.ORGANIZER_PASSWORD_HASH;
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!expectedUsername || !passwordHash || !jwtSecret) {
+      console.error('Organizer auth env vars are not fully configured');
+      return sendError(res, 500, 'SERVER_ERROR', 'Authentication is not configured');
     }
 
-    const { data, error } = await supabase
-      .from('events')
-      .insert({
-        title,
-        description: description ?? null,
-        event_date: eventDate.toISOString(),
-        location,
-        max_capacity,
-      })
-      .select('id, title, description, event_date, location, max_capacity, created_at')
-      .single();
-
-    if (error) {
-      console.error('Create event error:', error);
-      return sendError(res, 500, 'DATABASE_ERROR', 'Failed to create event');
+    if (username !== expectedUsername) {
+      return sendError(res, 401, 'UNAUTHORIZED', 'Invalid credentials');
     }
 
-    // Public registration link is constructed by the frontend as /register/{id}
-    res.status(201).json({
-      event: data,
-      public_registration_path: `/register/${data.id}`,
+    const match = await bcrypt.compare(password, passwordHash);
+    if (!match) {
+      return sendError(res, 401, 'UNAUTHORIZED', 'Invalid credentials');
+    }
+
+    const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
+    const token = jwt.sign({ username }, jwtSecret, { expiresIn } as jwt.SignOptions);
+
+    res.json({
+      token,
+      token_type: 'Bearer',
+      expires_in: expiresIn,
     });
   } catch (err) {
     next(err);
   }
+});
+
+// ---------- Public routes ----------
+
+/** Health check */
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', service: 'bookit-backend' });
 });
 
 /**
@@ -101,7 +108,6 @@ app.get('/events/:id', async (req: Request, res: Response, next: NextFunction) =
   try {
     const { id } = req.params;
 
-    // Basic UUID shape check
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return sendError(res, 400, 'INVALID_INPUT', 'Invalid event id');
     }
@@ -195,11 +201,57 @@ app.post('/events/:id/register', async (req: Request, res: Response, next: NextF
   }
 });
 
+// ---------- Protected organizer routes ----------
+
+/**
+ * POST /events
+ * Create a new event (organizer only).
+ */
+app.post('/events', requireOrganizer, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const parsed = createEventSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendError(res, 400, 'INVALID_INPUT', parsed.error.errors.map(e => e.message).join('; '));
+    }
+
+    const { title, description, event_date, location, max_capacity } = parsed.data;
+
+    const eventDate = new Date(event_date);
+    if (isNaN(eventDate.getTime()) || eventDate <= new Date()) {
+      return sendError(res, 400, 'INVALID_INPUT', 'event_date must be a future date');
+    }
+
+    const { data, error } = await supabase
+      .from('events')
+      .insert({
+        title,
+        description: description ?? null,
+        event_date: eventDate.toISOString(),
+        location,
+        max_capacity,
+      })
+      .select('id, title, description, event_date, location, max_capacity, created_at')
+      .single();
+
+    if (error) {
+      console.error('Create event error:', error);
+      return sendError(res, 500, 'DATABASE_ERROR', 'Failed to create event');
+    }
+
+    res.status(201).json({
+      event: data,
+      public_registration_path: `/register/${data.id}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /**
  * GET /events/:id/roster
  * Organizer view: list of registered attendees ordered by registered_at ASC.
  */
-app.get('/events/:id/roster', async (req: Request, res: Response, next: NextFunction) => {
+app.get('/events/:id/roster', requireOrganizer, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
 
@@ -207,7 +259,6 @@ app.get('/events/:id/roster', async (req: Request, res: Response, next: NextFunc
       return sendError(res, 400, 'INVALID_INPUT', 'Invalid event id');
     }
 
-    // Confirm event exists
     const { data: event, error: eventError } = await supabase
       .from('events')
       .select('id, title, max_capacity')
