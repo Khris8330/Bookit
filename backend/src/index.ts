@@ -116,7 +116,7 @@ app.get('/health', (_req, res) => {
  */
 app.get('/events/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return sendError(res, 400, 'INVALID_INPUT', 'Invalid event id');
@@ -165,7 +165,7 @@ app.get('/events/:id', async (req: Request, res: Response, next: NextFunction) =
  */
 app.post('/events/:id/register', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id: eventId } = req.params;
+    const eventId = String(req.params.id);
 
     if (!/^[0-9a-f-]{36}$/i.test(eventId)) {
       return sendError(res, 400, 'INVALID_INPUT', 'Invalid event id');
@@ -263,7 +263,7 @@ app.post('/events', requireOrganizer, async (req: AuthRequest, res: Response, ne
  */
 app.get('/events/:id/roster', requireOrganizer, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return sendError(res, 400, 'INVALID_INPUT', 'Invalid event id');
