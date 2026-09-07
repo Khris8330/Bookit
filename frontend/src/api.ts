@@ -23,6 +23,12 @@ async function request<T>(
 
   if (!res.ok) {
     const err = data as ApiError;
+
+    // If the backend rejects the token, clear it so the UI can redirect to login
+    if (res.status === 401) {
+      clearToken();
+    }
+
     throw {
       status: res.status,
       code: err?.error?.code || 'UNKNOWN',
