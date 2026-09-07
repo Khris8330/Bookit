@@ -31,7 +31,6 @@ export default function OrganizerDashboard() {
     setLoading(true);
 
     try {
-      // Convert local datetime-local value to ISO string
       const isoDate = new Date(eventDate).toISOString();
 
       const data = await createEvent({
@@ -49,6 +48,10 @@ export default function OrganizerDashboard() {
       setLocation('');
       setMaxCapacity(20);
     } catch (err: any) {
+      if (err.status === 401) {
+        navigate('/login');
+        return;
+      }
       setError(err.message || 'Failed to create event');
     } finally {
       setLoading(false);
@@ -67,7 +70,6 @@ export default function OrganizerDashboard() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback
       prompt('Copy this link:', url);
     }
   }
