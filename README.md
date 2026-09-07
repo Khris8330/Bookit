@@ -12,29 +12,16 @@ Frontend (React + Vite)  →  Backend API (Node.js + Express)  →  Supabase Pos
 - **Backend**: Deployed to Render (planned)
 - **Database**: Supabase PostgreSQL (project already provisioned)
 
-This repository currently contains only the project foundation. No business features, database schema, or API endpoints have been implemented yet.
-
 ## Project Structure
 
 ```
 Bookit/
 ├── frontend/                 # React + Vite + TypeScript SPA
-│   ├── public/
-│   ├── src/
-│   │   ├── App.tsx
-│   │   ├── main.tsx
-│   │   ├── App.css
-│   │   ├── index.css
-│   │   └── vite-env.d.ts
-│   ├── index.html
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── tsconfig.app.json
-│   ├── tsconfig.node.json
-│   └── vite.config.ts
 ├── backend/                  # Node.js + Express + TypeScript API
 │   ├── src/
-│   │   └── index.ts          # Minimal server entry point
+│   │   ├── index.ts          # API routes + server
+│   │   └── lib/
+│   │       └── supabase.ts   # Supabase client
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── .env.example
@@ -42,11 +29,47 @@ Bookit/
 └── README.md
 ```
 
+## Backend API (STEP 3)
+
+| Method | Endpoint                  | Purpose                                      |
+|--------|---------------------------|----------------------------------------------|
+| GET    | `/health`                 | Health check                                 |
+| POST   | `/events`                 | Create event (organizer)                     |
+| GET    | `/events/:id`             | Public event details + capacity info         |
+| POST   | `/events/:id/register`    | Public attendee registration                 |
+| GET    | `/events/:id/roster`      | Organizer roster (sorted by registered_at)   |
+
+### Capacity & Concurrency
+Registration is handled by a PostgreSQL function `register_for_event` that:
+- Locks the event row with `SELECT … FOR UPDATE`
+- Upserts the attendee by email
+- Checks for an existing registration (duplicate prevention)
+- Counts current registrations under the lock
+- Inserts only if capacity remains
+
+This prevents race conditions where concurrent requests could exceed `max_capacity`.
+
+### Error codes
+- `INVALID_INPUT` (400)
+- `EVENT_NOT_FOUND` (404)
+- `DUPLICATE_REGISTRATION` (409)
+- `EVENT_FULL` (409)
+- `DATABASE_ERROR` / `SERVER_ERROR` (500)
+
 ## Local Development
 
 ### Prerequisites
 - Node.js 18+ (recommended 20+)
 - npm
+
+### Backend
+```bash
+cd backend
+npm install
+cp .env.example .env   # fill in SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+npm run dev
+```
+Runs on http://localhost:3000
 
 ### Frontend
 ```bash
@@ -55,22 +78,6 @@ npm install
 npm run dev
 ```
 Runs on http://localhost:5173
-
-### Backend
-```bash
-cd backend
-npm install
-cp .env.example .env   # then fill in values later
-npm run dev
-```
-Runs on http://localhost:3000 (or the PORT defined in .env)
-
-## Intended Next Steps (not implemented yet)
-1. Database schema (events, attendees, registrations) in Supabase
-2. Backend API routes for event creation, public registration, capacity checks, and roster
-3. Frontend pages: organizer event form, public sign-up page, organizer dashboard
-4. Basic authentication for the organizer dashboard
-5. Deployment configuration
 
 ## Scope Notes
 - MVP only – features strictly limited to the approved PRD
