@@ -12,45 +12,36 @@ Frontend (React + Vite)  →  Backend API (Node.js + Express)  →  Supabase Pos
 - **Backend**: Deployed to Render (planned)
 - **Database**: Supabase PostgreSQL (project already provisioned)
 
-## Project Structure
+## Backend API
 
+| Method | Endpoint                  | Auth required | Purpose                                    |
+|--------|---------------------------|---------------|--------------------------------------------|
+| GET    | `/health`                 | No            | Health check                               |
+| POST   | `/auth/login`             | No            | Organizer login → returns JWT              |
+| GET    | `/events/:id`             | No            | Public event details + capacity info       |
+| POST   | `/events/:id/register`    | No            | Public attendee registration               |
+| POST   | `/events`                 | Yes (JWT)     | Create event (organizer)                   |
+| GET    | `/events/:id/roster`      | Yes (JWT)     | Organizer roster (sorted by registered_at) |
+
+### Authentication (STEP 4)
+Simple single-organizer JWT authentication:
+- Credentials stored as environment variables (`ORGANIZER_USERNAME` + bcrypt `ORGANIZER_PASSWORD_HASH`)
+- `POST /auth/login` verifies password and returns a signed JWT
+- Protected routes require `Authorization: Bearer <token>`
+- Public registration remains completely account-free
+
+Generate a password hash:
+```bash
+cd backend
+npm run hash-password
 ```
-Bookit/
-├── frontend/                 # React + Vite + TypeScript SPA
-├── backend/                  # Node.js + Express + TypeScript API
-│   ├── src/
-│   │   ├── index.ts          # API routes + server
-│   │   └── lib/
-│   │       └── supabase.ts   # Supabase client
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── .env.example
-├── .gitignore
-└── README.md
-```
-
-## Backend API (STEP 3)
-
-| Method | Endpoint                  | Purpose                                      |
-|--------|---------------------------|----------------------------------------------|
-| GET    | `/health`                 | Health check                                 |
-| POST   | `/events`                 | Create event (organizer)                     |
-| GET    | `/events/:id`             | Public event details + capacity info         |
-| POST   | `/events/:id/register`    | Public attendee registration                 |
-| GET    | `/events/:id/roster`      | Organizer roster (sorted by registered_at)   |
 
 ### Capacity & Concurrency
-Registration is handled by a PostgreSQL function `register_for_event` that:
-- Locks the event row with `SELECT … FOR UPDATE`
-- Upserts the attendee by email
-- Checks for an existing registration (duplicate prevention)
-- Counts current registrations under the lock
-- Inserts only if capacity remains
-
-This prevents race conditions where concurrent requests could exceed `max_capacity`.
+Registration uses a PostgreSQL function with `SELECT … FOR UPDATE` so concurrent requests cannot exceed `max_capacity`.
 
 ### Error codes
 - `INVALID_INPUT` (400)
+- `UNAUTHORIZED` (401)
 - `EVENT_NOT_FOUND` (404)
 - `DUPLICATE_REGISTRATION` (409)
 - `EVENT_FULL` (409)
@@ -66,7 +57,9 @@ This prevents race conditions where concurrent requests could exceed `max_capaci
 ```bash
 cd backend
 npm install
-cp .env.example .env   # fill in SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+cp .env.example .env
+# Fill in SUPABASE_*, ORGANIZER_*, and JWT_SECRET
+npm run hash-password   # generate ORGANIZER_PASSWORD_HASH
 npm run dev
 ```
 Runs on http://localhost:3000
@@ -81,5 +74,5 @@ Runs on http://localhost:5173
 
 ## Scope Notes
 - MVP only – features strictly limited to the approved PRD
-- No email confirmations, CSV export, or other nice-to-have features
+- No email confirmations, CSV export, attendee accounts, or multi-role systems
 - Keep the implementation simple and suitable for a student software-engineering project
