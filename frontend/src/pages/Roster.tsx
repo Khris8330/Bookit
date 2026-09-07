@@ -20,7 +20,13 @@ export default function Roster() {
 
     getRoster(eventId)
       .then(setData)
-      .catch((err) => setError(err.message || 'Failed to load roster'))
+      .catch((err) => {
+        if (err.status === 401) {
+          navigate('/login');
+          return;
+        }
+        setError(err.message || 'Failed to load roster');
+      })
       .finally(() => setLoading(false));
   }, [eventId, navigate]);
 
