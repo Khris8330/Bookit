@@ -12,6 +12,16 @@ Frontend (React + Vite)  →  Backend API (Node.js + Express)  →  Supabase Pos
 - **Backend**: Deployed to Render (planned)
 - **Database**: Supabase PostgreSQL (project already provisioned)
 
+## Frontend routes (STEP 5)
+
+| Path                         | Purpose                                      |
+|------------------------------|----------------------------------------------|
+| `/`                          | Home / landing                               |
+| `/login`                     | Organizer login                              |
+| `/organizer`                 | Create event + public link                   |
+| `/organizer/roster/:eventId` | Organizer roster table                       |
+| `/register/:eventId`         | Public registration page (no account needed) |
+
 ## Backend API
 
 | Method | Endpoint                  | Auth required | Purpose                                    |
@@ -23,29 +33,16 @@ Frontend (React + Vite)  →  Backend API (Node.js + Express)  →  Supabase Pos
 | POST   | `/events`                 | Yes (JWT)     | Create event (organizer)                   |
 | GET    | `/events/:id/roster`      | Yes (JWT)     | Organizer roster (sorted by registered_at) |
 
-### Authentication (STEP 4)
-Simple single-organizer JWT authentication:
-- Credentials stored as environment variables (`ORGANIZER_USERNAME` + bcrypt `ORGANIZER_PASSWORD_HASH`)
-- `POST /auth/login` verifies password and returns a signed JWT
-- Protected routes require `Authorization: Bearer <token>`
-- Public registration remains completely account-free
+### Authentication
+Simple single-organizer JWT authentication. Public registration remains account-free.
 
 Generate a password hash:
 ```bash
-cd backend
-npm run hash-password
+cd backend && npm run hash-password
 ```
 
 ### Capacity & Concurrency
 Registration uses a PostgreSQL function with `SELECT … FOR UPDATE` so concurrent requests cannot exceed `max_capacity`.
-
-### Error codes
-- `INVALID_INPUT` (400)
-- `UNAUTHORIZED` (401)
-- `EVENT_NOT_FOUND` (404)
-- `DUPLICATE_REGISTRATION` (409)
-- `EVENT_FULL` (409)
-- `DATABASE_ERROR` / `SERVER_ERROR` (500)
 
 ## Local Development
 
@@ -59,7 +56,7 @@ cd backend
 npm install
 cp .env.example .env
 # Fill in SUPABASE_*, ORGANIZER_*, and JWT_SECRET
-npm run hash-password   # generate ORGANIZER_PASSWORD_HASH
+npm run hash-password
 npm run dev
 ```
 Runs on http://localhost:3000
@@ -68,6 +65,7 @@ Runs on http://localhost:3000
 ```bash
 cd frontend
 npm install
+cp .env.example .env   # set VITE_API_URL=http://localhost:3000
 npm run dev
 ```
 Runs on http://localhost:5173
