@@ -97,6 +97,11 @@ h1 {
   font-size: 1.5rem;
 }
 
+.section-title {
+  font-size: 1.1rem;
+  margin: 1.5rem 0 0.75rem;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -168,6 +173,7 @@ h1 {
 
 .btn-secondary:hover {
   background: #e5e7eb;
+  text-decoration: none;
 }
 
 .alert {
@@ -268,6 +274,43 @@ h1 {
   letter-spacing: 0.03em;
 }
 
+.events-section {
+  margin: 1rem 0 0.5rem;
+}
+
+.event-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.event-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.event-list-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.event-list-info strong {
+  font-size: 1rem;
+}
+
 @media (max-width: 560px) {
   .header {
     padding: 0.75rem 1rem;
@@ -283,5 +326,10 @@ h1 {
 
   .roster-header {
     flex-direction: column;
+  }
+
+  .event-list-item {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

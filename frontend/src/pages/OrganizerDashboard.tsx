@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createEvent, getToken } from '../api';
+import { createEvent, getToken, listEvents } from '../api';
 import Alert from '../components/Alert';
 
 export default function OrganizerDashboard() {
@@ -18,11 +18,33 @@ export default function OrganizerDashboard() {
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [events, setEvents] = useState<any[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState('');
+
+  const loadEvents = useCallback(() => {
+    if (!getToken()) return;
+    setEventsLoading(true);
+    setEventsError('');
+    listEvents()
+      .then((data) => setEvents(data.events ?? []))
+      .catch((err: any) => {
+        if (err.status === 401) {
+          navigate('/login');
+          return;
+        }
+        setEventsError(err.message || 'Failed to load events');
+      })
+      .finally(() => setEventsLoading(false));
+  }, [navigate]);
+
   useEffect(() => {
     if (!getToken()) {
       navigate('/login');
+      return;
     }
-  }, [navigate]);
+    loadEvents();
+  }, [navigate, loadEvents]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -47,6 +69,7 @@ export default function OrganizerDashboard() {
       setEventDate('');
       setLocation('');
       setMaxCapacity(20);
+      loadEvents();
     } catch (err: any) {
       if (err.status === 401) {
         navigate('/login');
@@ -77,7 +100,7 @@ export default function OrganizerDashboard() {
   return (
     <div className="card">
       <h1>Organizer dashboard</h1>
-      <p className="muted">Create a new community event and share the registration link.</p>
+      <p className="muted">Create events and open any roster to monitor registrations.</p>
 
       {error && <Alert type="error">{error}</Alert>}
 
@@ -92,13 +115,44 @@ export default function OrganizerDashboard() {
             </button>
           </div>
           <p style={{ marginTop: '0.75rem' }}>
-            <Link to={`/organizer/roster/${created.event.id}`}>
-              View roster →
-            </Link>
+            <Link to={`/organizer/roster/${created.event.id}`}>View roster →</Link>
           </p>
         </Alert>
       )}
 
+      <section className="events-section">
+        <h2 className="section-title">Your events</h2>
+        {eventsLoading && <p className="muted">Loading events…</p>}
+        {eventsError && <Alert type="error">{eventsError}</Alert>}
+        {!eventsLoading && !eventsError && events.length === 0 && (
+          <p className="muted">No events yet. Create one below.</p>
+        )}
+        {!eventsLoading && events.length > 0 && (
+          <ul className="event-list">
+            {events.map((ev) => (
+              <li key={ev.id} className="event-list-item">
+                <div className="event-list-info">
+                  <strong>{ev.title}</strong>
+                  <span className="muted">
+                    {new Date(ev.event_date).toLocaleString()} · {ev.location}
+                  </span>
+                  <span className="muted">
+                    {ev.registered_count} / {ev.max_capacity} registered
+                  </span>
+                </div>
+                <Link
+                  to={`/organizer/roster/${ev.id}`}
+                  className="btn btn-secondary"
+                >
+                  View roster
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <h2 className="section-title">Create event</h2>
       <form onSubmit={handleSubmit} className="form">
         <label>
           Title <span className="req">*</span>

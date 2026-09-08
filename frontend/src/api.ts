@@ -86,6 +86,12 @@ export async function login(username: string, password: string) {
 
 // ---------- Organizer ----------
 
+export async function listEvents() {
+  return request<{ events: any[] }>('/events', {
+    headers: authHeaders(),
+  });
+}
+
 export async function createEvent(body: {
   title: string;
   description?: string;

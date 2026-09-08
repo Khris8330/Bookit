@@ -214,6 +214,43 @@ app.post('/events/:id/register', async (req: Request, res: Response, next: NextF
 // ---------- Protected organizer routes ----------
 
 /**
+ * GET /events
+ * Organizer: list all events with registration counts (newest first).
+ * Registered before /events/:id is fine — Express matches exact /events separately.
+ */
+app.get('/events', requireOrganizer, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { data: events, error } = await supabase
+      .from('events')
+      .select('id, title, event_date, location, max_capacity, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('List events error:', error);
+      return sendError(res, 500, 'DATABASE_ERROR', 'Failed to list events');
+    }
+
+    const withCounts = await Promise.all(
+      (events ?? []).map(async (event) => {
+        const { count } = await supabase
+          .from('registrations')
+          .select('*', { count: 'exact', head: true })
+          .eq('event_id', event.id);
+
+        return {
+          ...event,
+          registered_count: count ?? 0,
+        };
+      })
+    );
+
+    res.json({ events: withCounts });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * POST /events
  * Create a new event (organizer only).
  */
